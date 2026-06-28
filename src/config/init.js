@@ -77,10 +77,24 @@ function initDatabase() {
       FOREIGN KEY (borrow_id) REFERENCES borrows(id)
     );
 
+    CREATE TABLE IF NOT EXISTS reviews (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      book_id INTEGER NOT NULL,
+      rating INTEGER NOT NULL CHECK(rating >= 1 AND rating <= 5),
+      content TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (book_id) REFERENCES books(id),
+      UNIQUE(user_id, book_id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_borrows_user ON borrows(user_id);
     CREATE INDEX IF NOT EXISTS idx_borrows_book ON borrows(book_id);
     CREATE INDEX IF NOT EXISTS idx_reservations_book ON reservations(book_id);
     CREATE INDEX IF NOT EXISTS idx_fines_user ON fines(user_id);
+    CREATE INDEX IF NOT EXISTS idx_reviews_book ON reviews(book_id);
+    CREATE INDEX IF NOT EXISTS idx_reviews_user ON reviews(user_id);
   `);
 
   const adminCount = db.prepare('SELECT COUNT(*) as count FROM users WHERE role = ?').get('librarian').count;

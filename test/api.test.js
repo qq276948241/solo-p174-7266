@@ -64,7 +64,7 @@ async function runTests() {
   console.log('====================================');
 
   let readerToken, librarianToken, testBookId, testBorrowId, testReservationId, testFineId;
-  let reader2Token;
+  let reader2Token, testReviewId;
 
   try {
     await test('健康检查', async () => {
@@ -208,8 +208,92 @@ async function runTests() {
       }, reader2Token);
     });
 
+    await test('读者2还书 (使其有资格评论)', async () => {
+      return await request('/borrows/return/barcode', 'POST', {
+        barcode: 'LIB001'
+      }, reader2Token);
+    });
+
     await test('我的罚金', async () => {
       return await request('/fines/my', 'GET', null, readerToken);
+    });
+
+    await test('读者1发表评论 (5星)', async () => {
+      const res = await request(`/books/${testBookId}/reviews`, 'POST', {
+        rating: 5,
+        content: '非常好的JavaScript入门教材，案例丰富，讲解透彻！'
+      }, readerToken);
+      if (res.status === 201) {
+        testReviewId = res.data.review.id;
+      }
+      return res;
+    });
+
+    await test('读者2发表评论 (4星)', async () => {
+      return await request(`/books/${testBookId}/reviews`, 'POST', {
+        rating: 4,
+        content: '整体不错，部分章节可以更深入一些。'
+      }, reader2Token);
+    });
+
+    await test('未还书的读者不能评论 (400)', async () => {
+      const res = await request('/books/2/reviews', 'POST', {
+        rating: 3,
+        content: '测试评论'
+      }, readerToken);
+      if (res.status !== 400) {
+        throw new Error(`期望400，实际${res.status}`);
+      }
+      return res;
+    });
+
+    await test('重复评论被拒绝 (400)', async () => {
+      const res = await request(`/books/${testBookId}/reviews`, 'POST', {
+        rating: 3,
+        content: '再次评论'
+      }, readerToken);
+      if (res.status !== 400) {
+        throw new Error(`期望400，实际${res.status}`);
+      }
+      return res;
+    });
+
+    await test('评分超出范围被拒绝 (400)', async () => {
+      const res = await request('/books/2/reviews', 'POST', {
+        rating: 6,
+        content: '评分异常'
+      }, reader2Token);
+      if (res.status !== 400) {
+        throw new Error(`期望400，实际${res.status}`);
+      }
+      return res;
+    });
+
+    await test('获取图书评论列表 (含平均分和分布)', async () => {
+      const res = await request(`/books/${testBookId}/reviews`, 'GET', null, readerToken);
+      if (res.status === 200) {
+        console.log(`  平均分: ${res.data.stats.average_rating}, 评论数: ${res.data.stats.total_count}`);
+        console.log(`  分布: 5星=${res.data.stats.distribution['5']}, 4星=${res.data.stats.distribution['4']}`);
+      }
+      return res;
+    });
+
+    await test('读者2删读者1的评论被拒绝 (403)', async () => {
+      const res = await request(`/books/${testBookId}/reviews/${testReviewId}`, 'DELETE', null, reader2Token);
+      if (res.status !== 403) {
+        throw new Error(`期望403，实际${res.status}`);
+      }
+      return res;
+    });
+
+    await test('馆员可以删除任何评论', async () => {
+      return await request(`/books/${testBookId}/reviews/${testReviewId}`, 'DELETE', null, librarianToken);
+    });
+
+    await test('删除后评论数减少', async () => {
+      const res = await request(`/books/${testBookId}/reviews`, 'GET', null, readerToken);
+      console.log(`  当前评论数: ${res.data.stats.total_count}`);
+      return res;
     });
 
     await test('馆员查看所有逾期记录', async () => {

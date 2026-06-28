@@ -80,20 +80,6 @@ router.post('/borrow/barcode', authenticateToken, requireReader, barcodeValidati
   }
 });
 
-router.post('/return/:id', authenticateToken, requireReader, bookIdValidation, async (req, res, next) => {
-  try {
-    const bookId = parseInt(req.params.id);
-    const result = Borrow.returnBook(req.user.id, bookId);
-    
-    res.json({
-      message: '归还成功',
-      borrow: result
-    });
-  } catch (err) {
-    next(err);
-  }
-});
-
 router.post('/return/barcode', authenticateToken, requireReader, barcodeValidation, async (req, res, next) => {
   try {
     const { barcode } = req.body;
@@ -104,6 +90,20 @@ router.post('/return/barcode', authenticateToken, requireReader, barcodeValidati
     }
     
     const result = Borrow.returnBook(req.user.id, book.id);
+    
+    res.json({
+      message: '归还成功',
+      borrow: result
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/return/:id', authenticateToken, requireReader, bookIdValidation, async (req, res, next) => {
+  try {
+    const bookId = parseInt(req.params.id);
+    const result = Borrow.returnBook(req.user.id, bookId);
     
     res.json({
       message: '归还成功',

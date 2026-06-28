@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const Book = require('../models/Book');
+const Review = require('../models/Review');
 const { AppError } = require('../utils/errorHandler');
-const { authenticateToken, requireLibrarian } = require('../middleware/auth');
-const { bookSearchValidation, bookCreateValidation, bookIdValidation } = require('../middleware/validator');
+const { authenticateToken, requireLibrarian, requireReader } = require('../middleware/auth');
+const { bookSearchValidation, bookCreateValidation, bookIdValidation, reviewCreateValidation, reviewIdValidation } = require('../middleware/validator');
 
 router.get('/', authenticateToken, bookSearchValidation, async (req, res, next) => {
   try {
@@ -106,6 +107,80 @@ router.patch('/:id/status', authenticateToken, requireLibrarian, bookIdValidatio
     res.json({
       message: '状态更新成功',
       book
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/:id/reviews', authenticateToken, bookIdValidation, async (req, res, next) => {
+  try {
+    const bookId = parseInt(req.params.id);
+    const book = Book.findById(bookId);
+    if (!book) {
+      return next(new AppError('图书不存在', 404));
+    }
+    
+    const result = Review.findByBookId(bookId);
+    
+    res.json({
+      book: {
+        id: book.id,
+        title: book.title,
+        isbn: book.isbn,
+        author: book.author
+      },
+      reviews: result.reviews,
+      stats: result.stats
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/:id/reviews', authenticateToken, requireReader, bookIdValidation, reviewCreateValidation, async (req, res, next) => {
+  try {
+    const bookId = parseInt(req.params.id);
+    const book = Book.findById(bookId);
+    if (!book) {
+      return next(new AppError('图书不存在', 404));
+    }
+    
+    const review = Review.create(req.user.id, bookId, req.body);
+    
+    res.status(201).json({
+      message: '评论发表成功',
+      review
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/:id/reviews/:reviewId', authenticateToken, bookIdValidation, reviewIdValidation, async (req, res, next) => {
+  try {
+    const bookId = parseInt(req.params.id);
+    const reviewId = parseInt(req.params.reviewId);
+    
+    const book = Book.findById(bookId);
+    if (!book) {
+      return next(new AppError('图书不存在', 404));
+    }
+    
+    const review = Review.findById(reviewId);
+    if (!review) {
+      return next(new AppError('评论不存在', 404));
+    }
+    
+    if (review.book_id !== bookId) {
+      return next(new AppError('该评论不属于此图书', 400));
+    }
+    
+    const result = Review.delete(req.user.id, req.user.role, reviewId);
+    
+    res.json({
+      message: '评论删除成功',
+      ...result
     });
   } catch (err) {
     next(err);

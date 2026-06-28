@@ -75,6 +75,17 @@ const reservationIdValidation = [
   validate
 ];
 
+const reviewCreateValidation = [
+  body('rating').isInt({ min: 1, max: 5 }).withMessage('评分必须是1-5之间的整数'),
+  body('content').optional().isString().isLength({ max: 1000 }).withMessage('评论内容不能超过1000字符'),
+  validate
+];
+
+const reviewIdValidation = [
+  param('id').isInt({ min: 1 }).withMessage('评论ID必须是正整数'),
+  validate
+];
+
 module.exports = {
   loginValidation,
   registerValidation,
@@ -86,5 +97,7 @@ module.exports = {
   bookIdValidation,
   userIdValidation,
   finePayValidation,
-  reservationIdValidation
+  reservationIdValidation,
+  reviewCreateValidation,
+  reviewIdValidation
 };
