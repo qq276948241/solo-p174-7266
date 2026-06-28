@@ -1,5 +1,9 @@
 const db = require('../config/database');
 const { AppError } = require('../utils/errorHandler');
+const { JOIN_FIELDS, buildReviewStats } = require('../utils/sqlHelper');
+
+const REVIEW_WITH_USER = `r.*, ${JOIN_FIELDS.userBasic}`;
+const REVIEW_WITH_BOOK = `r.*, ${JOIN_FIELDS.bookBasic}`;
 
 class Review {
   static create(userId, bookId, reviewData) {
@@ -38,8 +42,7 @@ class Review {
 
   static findById(id) {
     return db.prepare(`
-      SELECT r.*,
-             u.name as user_name, u.username
+      SELECT ${REVIEW_WITH_USER}
       FROM reviews r
       JOIN users u ON r.user_id = u.id
       WHERE r.id = ?
@@ -48,47 +51,22 @@ class Review {
 
   static findByBookId(bookId) {
     const reviews = db.prepare(`
-      SELECT r.*,
-             u.name as user_name, u.username
+      SELECT ${REVIEW_WITH_USER}
       FROM reviews r
       JOIN users u ON r.user_id = u.id
       WHERE r.book_id = ?
       ORDER BY r.created_at DESC
     `).all(bookId);
 
-    const stats = db.prepare(`
-      SELECT 
-        COUNT(*) as total_count,
-        COALESCE(AVG(rating), 0) as average_rating,
-        SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) as rating_5,
-        SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) as rating_4,
-        SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) as rating_3,
-        SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) as rating_2,
-        SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) as rating_1
-      FROM reviews 
-      WHERE book_id = ?
-    `).get(bookId);
-
     return {
       reviews,
-      stats: {
-        total_count: stats.total_count,
-        average_rating: Math.round(stats.average_rating * 100) / 100,
-        distribution: {
-          5: stats.rating_5 || 0,
-          4: stats.rating_4 || 0,
-          3: stats.rating_3 || 0,
-          2: stats.rating_2 || 0,
-          1: stats.rating_1 || 0
-        }
-      }
+      stats: buildReviewStats(reviews)
     };
   }
 
   static findByUserId(userId) {
     return db.prepare(`
-      SELECT r.*,
-             bk.title as book_title, bk.isbn, bk.barcode, bk.author
+      SELECT ${REVIEW_WITH_BOOK}
       FROM reviews r
       JOIN books bk ON r.book_id = bk.id
       WHERE r.user_id = ?
@@ -115,15 +93,14 @@ class Review {
   }
 
   static getAverageRating(bookId) {
-    const result = db.prepare(`
-      SELECT COALESCE(AVG(rating), 0) as average, COUNT(*) as count
-      FROM reviews 
-      WHERE book_id = ?
-    `).get(bookId);
+    const reviews = db.prepare(`
+      SELECT rating FROM reviews WHERE book_id = ?
+    `).all(bookId);
 
+    const stats = buildReviewStats(reviews);
     return {
-      average_rating: Math.round(result.average * 100) / 100,
-      review_count: result.count
+      average_rating: stats.average_rating,
+      review_count: stats.total_count
     };
   }
 }

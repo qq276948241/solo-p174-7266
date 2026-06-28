@@ -1,5 +1,6 @@
 const db = require('../config/database');
 const { AppError } = require('../utils/errorHandler');
+const { JOIN_FIELDS } = require('../utils/sqlHelper');
 
 class Book {
   static create(bookData) {
@@ -92,7 +93,7 @@ class Book {
 
   static getReservationQueue(bookId) {
     return db.prepare(`
-      SELECT r.id, r.user_id, u.name as user_name, r.queue_position, r.reserved_at, r.status
+      SELECT r.id, r.user_id, ${JOIN_FIELDS.userBasic}, r.queue_position, r.reserved_at, r.status
       FROM reservations r
       JOIN users u ON r.user_id = u.id
       WHERE r.book_id = ? AND r.status = 'waiting'
