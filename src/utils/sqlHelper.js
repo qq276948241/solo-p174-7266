@@ -47,14 +47,22 @@ const buildReviewStats = (reviews) => {
 
   const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
   let sum = 0;
+  let validCount = 0;
   reviews.forEach(r => {
-    sum += r.rating;
-    distribution[r.rating] = (distribution[r.rating] || 0) + 1;
+    const rating = Number(r.rating);
+    if (!Number.isNaN(rating) && rating >= 1 && rating <= 5) {
+      sum += rating;
+      validCount++;
+      distribution[rating] = (distribution[rating] || 0) + 1;
+    }
   });
+
+  const avg = validCount > 0 ? sum / validCount : 0;
+  const safeAvg = Number.isNaN(avg) || !Number.isFinite(avg) ? 0 : avg;
 
   return {
     total_count: total,
-    average_rating: Math.round((sum / total) * 100) / 100,
+    average_rating: Math.round(safeAvg * 100) / 100,
     distribution
   };
 };

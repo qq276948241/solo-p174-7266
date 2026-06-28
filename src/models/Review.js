@@ -4,6 +4,7 @@ const { JOIN_FIELDS, buildReviewStats } = require('../utils/sqlHelper');
 
 const REVIEW_WITH_USER = `r.*, ${JOIN_FIELDS.userBasic}`;
 const REVIEW_WITH_BOOK = `r.*, ${JOIN_FIELDS.bookBasic}`;
+const NOT_DELETED = 'r.deleted_at IS NULL';
 
 class Review {
   static create(userId, bookId, reviewData) {
@@ -25,7 +26,7 @@ class Review {
 
     const existing = db.prepare(`
       SELECT id FROM reviews 
-      WHERE user_id = ? AND book_id = ?
+      WHERE user_id = ? AND book_id = ? AND deleted_at IS NULL
     `).get(userId, bookId);
 
     if (existing) {
@@ -45,7 +46,7 @@ class Review {
       SELECT ${REVIEW_WITH_USER}
       FROM reviews r
       JOIN users u ON r.user_id = u.id
-      WHERE r.id = ?
+      WHERE r.id = ? AND ${NOT_DELETED}
     `).get(id);
   }
 
@@ -54,7 +55,7 @@ class Review {
       SELECT ${REVIEW_WITH_USER}
       FROM reviews r
       JOIN users u ON r.user_id = u.id
-      WHERE r.book_id = ?
+      WHERE r.book_id = ? AND ${NOT_DELETED}
       ORDER BY r.created_at DESC
     `).all(bookId);
 
@@ -69,7 +70,7 @@ class Review {
       SELECT ${REVIEW_WITH_BOOK}
       FROM reviews r
       JOIN books bk ON r.book_id = bk.id
-      WHERE r.user_id = ?
+      WHERE r.user_id = ? AND ${NOT_DELETED}
       ORDER BY r.created_at DESC
     `).all(userId);
   }
@@ -84,7 +85,11 @@ class Review {
       throw new AppError('无权删除他人的评论', 403);
     }
 
-    db.prepare('DELETE FROM reviews WHERE id = ?').run(reviewId);
+    db.prepare(`
+      UPDATE reviews 
+      SET deleted_at = datetime('now')
+      WHERE id = ?
+    `).run(reviewId);
 
     return {
       deleted: true,
@@ -94,7 +99,8 @@ class Review {
 
   static getAverageRating(bookId) {
     const reviews = db.prepare(`
-      SELECT rating FROM reviews WHERE book_id = ?
+      SELECT rating FROM reviews 
+      WHERE book_id = ? AND deleted_at IS NULL
     `).all(bookId);
 
     const stats = buildReviewStats(reviews);

@@ -296,6 +296,47 @@ async function runTests() {
       return res;
     });
 
+    let review2Id = null;
+    await test('先记录读者2评论的ID用于后续测试', async () => {
+      const res = await request(`/books/${testBookId}/reviews`, 'GET', null, readerToken);
+      if (res.data.reviews && res.data.reviews.length > 0) {
+        review2Id = res.data.reviews[0].id;
+      }
+      console.log(`  读者2评论ID: ${review2Id}`);
+      return res;
+    });
+
+    await test('馆员删读者2的评论（软删，不触发外键错误）', async () => {
+      if (!review2Id) throw new Error('读者2的评论ID未找到');
+      return await request(`/books/${testBookId}/reviews/${review2Id}`, 'DELETE', null, librarianToken);
+    });
+
+    await test('一本书所有评论被软删后平均分返回0', async () => {
+      const res = await request(`/books/${testBookId}/reviews`, 'GET', null, readerToken);
+      if (res.data.stats.total_count !== 0) {
+        throw new Error(`期望0条评论，实际${res.data.stats.total_count}`);
+      }
+      if (res.data.stats.average_rating !== 0) {
+        throw new Error(`期望平均分0，实际${res.data.stats.average_rating}，类型${typeof res.data.stats.average_rating}`);
+      }
+      if (Number.isNaN(res.data.stats.average_rating)) {
+        throw new Error('平均分是NaN！');
+      }
+      console.log(`  全删后 total_count=${res.data.stats.total_count}, average_rating=${res.data.stats.average_rating}`);
+      return res;
+    });
+
+    await test('软删后同一用户可以再次发表评论', async () => {
+      const res = await request(`/books/${testBookId}/reviews`, 'POST', {
+        rating: 3,
+        content: '删了之后再评一次（软删不占唯一约束）'
+      }, readerToken);
+      if (res.status !== 201) {
+        throw new Error(`软删后重新发表失败: ${JSON.stringify(res.data)}`);
+      }
+      return res;
+    });
+
     await test('馆员查看所有逾期记录', async () => {
       return await request('/admin/overdue', 'GET', null, librarianToken);
     });

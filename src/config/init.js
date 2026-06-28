@@ -84,9 +84,10 @@ function initDatabase() {
       rating INTEGER NOT NULL CHECK(rating >= 1 AND rating <= 5),
       content TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      deleted_at TEXT,
       FOREIGN KEY (user_id) REFERENCES users(id),
       FOREIGN KEY (book_id) REFERENCES books(id),
-      UNIQUE(user_id, book_id)
+      UNIQUE(user_id, book_id, deleted_at)
     );
 
     CREATE INDEX IF NOT EXISTS idx_borrows_user ON borrows(user_id);
